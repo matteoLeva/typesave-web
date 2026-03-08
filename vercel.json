@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/typesave", "destination": "/index.html" },
+    { "source": "/typesave/", "destination": "/index.html" }
+  ]
+}
