@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TypeSave Demo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: transparent;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    overflow: hidden;
+  }
+
+  .screen {
+    width: 100%;
+    height: 100vh;
+    background: #1a1a1a;
+    border-radius: 0;
+    overflow: hidden;
+    position: relative;
+    box-shadow: none;
+  }
+
+  /* macOS titlebar */
+  .titlebar {
+    background: #2a2a2a;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 8px;
+    border-bottom: 1px solid #333;
+  }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot.red { background: #ff5f57; }
+  .dot.yellow { background: #ffbd2e; }
+  .dot.green { background: #28ca41; }
+  .titlebar-title {
+    flex: 1;
+    text-align: center;
+    color: #666;
+    font-size: 13px;
+    margin-right: 60px;
+  }
+
+  /* Chat area */
+  .chat-area {
+    padding: 32px 48px;
+    height: calc(100% - 38px - 80px);
+    overflow: hidden;
+  }
+
+  .prompt-label {
+    color: #666;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .text-block {
+    color: #e0e0e0;
+    font-size: 14.5px;
+    line-height: 1.7;
+    min-height: 80px;
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 2px;
+    height: 16px;
+    background: #10a37f;
+    vertical-align: text-bottom;
+    margin-left: 1px;
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* Input area */
+  .input-area {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: #222;
+    border-top: 1px solid #333;
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 12px;
+  }
+  .input-box {
+    flex: 1;
+    background: #2d2d2d;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    padding: 12px 16px;
+    color: #ccc;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+  }
+  .send-btn {
+    width: 36px;
+    height: 36px;
+    background: #10a37f;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 16px;
+    opacity: 0.4;
+  }
+
+  /* CRASH overlay */
+  .crash-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 10;
+  }
+  .crash-overlay.active { opacity: 1; }
+  .crash-icon { font-size: 48px; }
+  .crash-text { color: #ff5f57; font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
+  .crash-sub { color: #666; font-size: 13px; }
+
+  /* TypeSave toast */
+  .ts-toast {
+    position: absolute;
+    bottom: 100px;
+    right: 24px;
+    background: #1e1e1e;
+    border: 1px solid #2e7d32;
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s ease;
+    z-index: 20;
+    min-width: 220px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .ts-toast.show { opacity: 1; transform: translateY(0); }
+  .ts-icon { font-size: 20px; }
+  .ts-info {}
+  .ts-title { color: #4caf50; font-size: 13px; font-weight: 600; }
+  .ts-sub { color: #666; font-size: 11px; margin-top: 2px; }
+
+  /* Shortcut badge */
+  .shortcut-badge {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    transition: all 0.2s ease;
+    z-index: 30;
+    backdrop-filter: blur(10px);
+  }
+  .shortcut-badge.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  .key {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 5px;
+    padding: 4px 8px;
+    color: #ddd;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .plus { color: #666; font-size: 13px; }
+
+  /* Final card */
+  .final-card {
+    position: absolute;
+    inset: 0;
+    background: #0f0f0f;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    z-index: 40;
+  }
+  .final-card.show { opacity: 1; }
+  .final-icon { font-size: 56px; }
+  .final-title { color: #fff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .final-sub { color: #4caf50; font-size: 16px; font-weight: 500; }
+  .final-brand { color: #444; font-size: 13px; margin-top: 8px; letter-spacing: 0.05em; }
+
+  /* Highlight animation for pasted text */
+  @keyframes highlightFade {
+    0% { background: rgba(16,163,127,0.3); border-radius: 4px; }
+    100% { background: transparent; }
+  }
+  .highlighted { animation: highlightFade 1.2s ease forwards; }
+
+  /* Flash effect */
+  .flash {
+    position: absolute;
+    inset: 0;
+    background: #ff5f57;
+    opacity: 0;
+    z-index: 9;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div class="screen" id="screen">
+  <div class="flash" id="flash"></div>
+
+  <div class="titlebar">
+    <div class="dot red"></div>
+    <div class="dot yellow"></div>
+    <div class="dot green"></div>
+    <div class="titlebar-title">ChatGPT</div>
+  </div>
+
+  <div class="chat-area">
+    <div class="prompt-label">Your message</div>
+    <div class="text-block" id="textBlock"></div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-box">Ask anything...</div>
+    <div class="send-btn">↑</div>
+  </div>
+
+  <!-- Crash overlay -->
+  <div class="crash-overlay" id="crashOverlay">
+    <div class="crash-icon">💥</div>
+    <div class="crash-text">ChatGPT stopped unexpectedly</div>
+    <div class="crash-sub">Your message was not saved.</div>
+  </div>
+
+  <!-- TypeSave toast -->
+  <div class="ts-toast" id="tsToast">
+    <div class="ts-icon">🛡️</div>
+    <div class="ts-info">
+      <div class="ts-title">TypeSave has your back</div>
+      <div class="ts-sub">Saved 2 min ago · press ⌘⇧V to restore</div>
+    </div>
+  </div>
+
+  <!-- Shortcut badge -->
+  <div class="shortcut-badge" id="shortcutBadge">
+    <span class="key">⌘</span>
+    <span class="plus">+</span>
+    <span class="key">⇧</span>
+    <span class="plus">+</span>
+    <span class="key">V</span>
+  </div>
+
+  <!-- GIF overlays (piccoli, in sovraimpressione) -->
+  <img id="gifCrash"     src="" style="display:none;position:absolute;bottom:90px;left:16px;width:140px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:50;" />
+  <img id="gifRecovered" src="" style="display:none;position:absolute;bottom:90px;left:16px;width:140px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:50;" />
+  <img id="gifPaste"     src="" style="display:none;position:absolute;bottom:90px;left:16px;width:140px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:50;" />
+
+  <!-- Final card -->
+  <div class="final-card" id="finalCard">
+    <div class="final-icon">🧠</div>
+    <div class="final-title">6 min saved.</div>
+    <div class="final-sub">Sanity: intact.</div>
+    <div class="final-brand">TypeSave · sssuperfast.com</div>
+  </div>
+</div>
+
+<script>
+const lines = [
+  "You are a senior product manager at a B2B SaaS company.",
+  "Your task is to review the following feature spec and identify gaps.",
+  "Focus especially on edge cases, missing user flows, and anything",
+  "that could break in production with high-traffic scenarios."
+];
+
+// We show lines 1-2 already typed, then type lines 3-4 fast
+const preTyped = lines[0] + "\n" + lines[1] + "\n";
+const toType = lines[2] + "\n" + lines[3];
+
+const textBlock = document.getElementById('textBlock');
+const crashOverlay = document.getElementById('crashOverlay');
+const tsToast = document.getElementById('tsToast');
+const shortcutBadge = document.getElementById('shortcutBadge');
+const finalCard = document.getElementById('finalCard');
+const flash = document.getElementById('flash');
+const gifCrash = document.getElementById('gifCrash');
+const gifRecovered = document.getElementById('gifRecovered');
+const gifPaste = document.getElementById('gifPaste');
+
+function showGifOverlay(el, src, duration) {
+  return new Promise(async r => {
+    el.src = src;
+    el.style.display = 'block';
+    el.style.opacity = '0';
+    el.style.transition = 'opacity 0.3s';
+    await sleep(30);
+    el.style.opacity = '1';
+    await sleep(duration);
+    el.style.opacity = '0';
+    await sleep(300);
+    el.style.display = 'none';
+    r();
+  });
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function renderText(text, showCursor = true) {
+  const escaped = text
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/\n/g,'<br>');
+  textBlock.innerHTML = escaped + (showCursor ? '<span class="cursor"></span>' : '');
+}
+
+async function flashScreen(color, duration) {
+  flash.style.background = color;
+  flash.style.transition = 'opacity 0.08s';
+  flash.style.opacity = '0.85';
+  await sleep(duration);
+  flash.style.opacity = '0';
+  await sleep(150);
+}
+
+async function run() {
+  // Phase 1: Show pre-typed lines
+  renderText(preTyped);
+  await sleep(800);
+
+  // Phase 2: Type lines 3-4 fast
+  let typed = '';
+  for (let i = 0; i < toType.length; i++) {
+    typed += toType[i];
+    renderText(preTyped + typed);
+    // Fast typing: 30-55ms per char
+    await sleep(4000 / toType.length);
+  }
+
+  await sleep(600);
+
+  // Phase 3: CRASH
+  await flashScreen('#ff5f57', 120);
+  await flashScreen('#ff5f57', 80);
+
+  // Black out the screen
+  renderText('', false);
+  textBlock.innerHTML = '';
+  crashOverlay.style.background = 'rgba(0,0,0,0.92)';
+  crashOverlay.classList.add('active');
+  showGifOverlay(gifCrash, 'assets/crash.gif', 1200);
+  await sleep(1400);
+
+  // Phase 4: TypeSave toast appears
+  tsToast.classList.add('show');
+  showGifOverlay(gifRecovered, 'assets/recovered.gif', 1400);
+  await sleep(1600);
+
+  // Phase 5: Shortcut
+  shortcutBadge.classList.add('show');
+  await sleep(900);
+  shortcutBadge.classList.remove('show');
+
+  // Phase 6: Text restored with green highlight
+  crashOverlay.classList.remove('active');
+  await sleep(100);
+
+  const fullText = preTyped + toType;
+  const escaped = fullText
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/\n/g,'<br>');
+
+  textBlock.innerHTML = `<span class="highlighted">${escaped}</span>`;
+  showGifOverlay(gifPaste, 'assets/paste.gif', 1800);
+  tsToast.classList.remove('show');
+
+  await sleep(2200);
+
+  // Phase 7: Final card
+  finalCard.classList.add('show');
+
+  // Loop after 3s
+  await sleep(4000);
+  finalCard.classList.remove('show');
+  tsToast.classList.remove('show');
+  await sleep(600);
+  run();
+}
+
+run();
+</script>
+</body>
+</html>
